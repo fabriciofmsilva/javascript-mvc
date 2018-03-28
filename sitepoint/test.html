@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Penguins</title>
+  <style>
+    .mocha {
+      font-size: 100%;
+      font-family: 'Roboto', sans-serif;
+      color: #333;
+    }
+
+    ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .suite ul {
+      padding-left: 2em;
+    }
+
+    h1 {
+      font-size: 1.2em;
+    }
+
+    h2 {
+      font-size: 1em;
+    }
+
+    span.duration {
+      display: inline-block;
+      margin-left: 1em;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="mocha" class="mocha"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mocha/3.2.0/mocha.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chai/3.5.0/chai.min.js"></script>
+  <script>
+    var PenguinModel = function PenguinModel(XMLHttpRequest) {
+      this.XMLHttpRequest = XMLHttpRequest;
+    };
+
+    PenguinModel.prototype.getPenguin = function getPenguin(index, fn) {
+      var oReq = new this.XMLHttpRequest();
+
+      oReq.onload = function onLoad(e) {
+        var ajaxResponse = JSON.parse(e.currentTarget.responseText);
+        var penguin = ajaxResponse[index];
+
+        penguin.index = index;
+        penguin.count = ajaxResponse.length;
+
+        fn(penguin);
+      };
+
+      oReq.open('GET', 'https://codepen.io/beautifulcoder/pen/vmOOLr.js', true);
+      oReq.send();
+    };
+
+    var PenguinView = function PenguinView(element) {
+      this.element = element;
+
+      this.onClickGetPenguin = null;
+    };
+
+    PenguinView.prototype.render = function render(viewModel) {
+      this.element.innerHTML = '<h3>' + viewModel.name + '</h3>' +
+        '<img class="penguin-image" src="' + viewModel.imageUrl +
+          '" alt="' + viewModel.name + '" />' +
+        '<p><b>Size:</b> ' + viewModel.size + '</p>' +
+        '<p><b>Favorite food:</b> ' + viewModel.favoriteFood + '</p>' +
+        '<a id="previousPenguin" class="previous button" href="javascript:void(0);"' +
+          ' data-penguin-index="' + viewModel.previousIndex + '">Previous</a> ' +
+        '<a id="nextPenguin" class="next button" href="javascript:void(0);"' +
+          ' data-penguin-index="' + viewModel.nextIndex + '">Next</a>';
+
+      this.previousIndex = viewModel.previousIndex;
+      this.nextIndex = viewModel.nextIndex;
+
+      var previousPenguin = this.element.querySelector('#previousPenguin');
+      previousPenguin.addEventListener('click', this.onClickGetPenguin);
+
+      var nextPenguin = this.element.querySelector('#nextPenguin');
+      nextPenguin.addEventListener('click', this.onClickGetPenguin);
+      nextPenguin.focus();
+    };
+
+    var PenguinController = function PenguinController(penguinView, penguinModel) {
+      this.penguinView = penguinView;
+      this.penguinModel = penguinModel;
+    };
+
+    PenguinController.prototype.initialize = function initialize() {
+      this.penguinView.onClickGetPenguin = this.onClickGetPenguin.bind(this);
+    };
+
+    PenguinController.prototype.onClickGetPenguin = function onClickGetPenguin(e) {
+      var target = e.currentTarget;
+      var index = parseInt(target.dataset.penguinIndex, 10);
+
+      this.penguinModel.getPenguin(index, this.showPenguin.bind(this));
+    };
+
+    PenguinController.prototype.showPenguin = function showPenguin(penguinModelData) {
+      var penguinViewModel = {
+        name: penguinModelData.name,
+        imageUrl: penguinModelData.imageUrl,
+        size: penguinModelData.size,
+        favoriteFood: penguinModelData.favoriteFood
+      };
+
+      penguinViewModel.previousIndex = penguinModelData.index - 1;
+      penguinViewModel.nextIndex = penguinModelData.index + 1;
+
+      if (penguinModelData.index === 0) {
+        penguinViewModel.previousIndex = penguinModelData.count - 1;
+      }
+
+      if (penguinModelData.index === penguinModelData.count - 1) {
+        penguinViewModel.nextIndex = 0;
+      }
+
+      this.penguinView.render(penguinViewModel);
+    };
+
+    mocha.setup('bdd');
+    var assert = chai.assert;
+    console.log(chai);
+
+    describe('PenguinController', function onDescribe() {
+      var PenguinViewMock = function PenguinViewMock() {
+        this.calledRenderWith = null;
+
+        this.onClickGetPenguin = null;
+      };
+
+      PenguinViewMock.prototype.render = function render(penguinViewModel) {
+        this.calledRenderWith = penguinViewModel;
+      };
+
+      var PenguinModelMock = function PenguinModelMock() {
+        this.calledGetPenguinWithIndex = null;
+        this.calledGetPenguinWithCallback = false;
+      };
+
+      PenguinModelMock.prototype.getPenguin = function getPenguin(index, fn) {
+        this.calledGetPenguinWithIndex = index;
+
+        if (typeof fn === 'function') {
+          this.calledGetPenguinWithCallback = true;
+        }
+      };
+
+      it('Initialize component and wire penguin events', function onRun() {
+        // Arrange
+        var penguinViewMock = new PenguinViewMock();
+
+        var controller = new PenguinController(penguinViewMock, null);
+
+        // Act
+        controller.initialize();
+
+        // Assert
+        assert.strictEqual(typeof penguinViewMock.onClickGetPenguin, 'function');
+      });
+
+      it('On click get penguin data from the model', function onRun() {
+        // Arrange
+        var penguinModel = new PenguinModelMock();
+
+        var controller = new PenguinController(null, penguinModel);
+
+        var event = { currentTarget: { dataset: { penguinIndex: '1' } } };
+
+        // Act
+        controller.onClickGetPenguin(event);
+
+        // Assert
+        assert(penguinModel.calledGetPenguinWithCallback);
+        assert.strictEqual(penguinModel.calledGetPenguinWithIndex, 1);
+      });
+
+      it('Show a single pengin with view model data', function onRun() {
+        // Arrange
+        var penguinViewMock = new PenguinViewMock();
+
+        var controller = new PenguinController(penguinViewMock, null);
+
+        var penguinModelData = {
+          name: 'Chinstrap',
+          imageUrl: 'http://chinstrapl.jpg',
+          size: '5.0kg (m), 4.8kg (f)',
+          favoriteFood: 'krill',
+          index: 2,
+          count: 5
+        };
+
+        // Act
+        controller.showPenguin(penguinModelData);
+
+        // Assert
+        assert.strictEqual(penguinViewMock.calledRenderWith.name, 'Chinstrap');
+        assert.strictEqual(penguinViewMock.calledRenderWith.imageUrl, 'http://chinstrapl.jpg');
+        assert.strictEqual(penguinViewMock.calledRenderWith.size, '5.0kg (m), 4.8kg (f)');
+        assert.strictEqual(penguinViewMock.calledRenderWith.favoriteFood, 'krill');
+        assert.strictEqual(penguinViewMock.calledRenderWith.previousIndex, 1);
+        assert.strictEqual(penguinViewMock.calledRenderWith.nextIndex, 3);
+      });
+
+      it('Show a single pengin when next index wraps', function onRun() {
+        // Arrange
+        var penguinViewMock = new PenguinViewMock();
+
+        var controller = new PenguinController(penguinViewMock, null);
+
+        var penguinModelData = {
+          name: 'Chinstrap',
+          imageUrl: 'http://chinstrapl.jpg',
+          index: 4,
+          count: 5
+        };
+
+        // Act
+        controller.showPenguin(penguinModelData);
+
+        // Assert
+        assert.strictEqual(penguinViewMock.calledRenderWith.name, 'Chinstrap');
+        assert.strictEqual(penguinViewMock.calledRenderWith.imageUrl, 'http://chinstrapl.jpg');
+        assert.strictEqual(penguinViewMock.calledRenderWith.previousIndex, 3);
+        assert.strictEqual(penguinViewMock.calledRenderWith.nextIndex, 0);
+      });
+
+      it('Show a single pengin when previous index wraps', function onRun() {
+        // Arrange
+        var penguinViewMock = new PenguinViewMock();
+
+        var controller = new PenguinController(penguinViewMock, null);
+
+        var penguinModelData = {
+          name: 'Chinstrap',
+          imageUrl: 'http://chinstrapl.jpg',
+          index: 0,
+          count: 5
+        };
+
+        // Act
+        controller.showPenguin(penguinModelData);
+
+        // Assert
+        assert.strictEqual(penguinViewMock.calledRenderWith.name, 'Chinstrap');
+        assert.strictEqual(penguinViewMock.calledRenderWith.imageUrl, 'http://chinstrapl.jpg');
+        assert.strictEqual(penguinViewMock.calledRenderWith.previousIndex, 4);
+        assert.strictEqual(penguinViewMock.calledRenderWith.nextIndex, 1);
+      });
+    });
+
+    describe('PenguinView', function onDescribe() {
+      var ElementMock = function ElementMock() {
+        this.innerHTML = null;
+
+        this.calledQuerySelectorWith = [];
+
+        this.calledAddEventListenerWithType = [];
+        this.calledAddEventListenerWithListener = [];
+
+        this.calledFocusTimes = 0;
+      };
+
+      ElementMock.prototype.querySelector = function querySelector(selector) {
+        this.calledQuerySelectorWith.push(selector);
+
+        return this;
+      };
+
+      ElementMock.prototype.addEventListener = function addEventListener(type, listener) {
+        this.calledAddEventListenerWithType.push(type);
+        this.calledAddEventListenerWithListener.push(listener);
+      };
+
+      ElementMock.prototype.focus = function focus() {
+        this.calledFocusTimes++;
+      };
+
+      it('Render element in HTML with view model data', function onRun() {
+        // Arrange
+        var elementMock = new ElementMock();
+
+        var view = new PenguinView(elementMock);
+
+        var viewModel = {
+          name: 'Chinstrap',
+          imageUrl: 'http://chinstrap1.jpg',
+          size: '5.0kg (m), 4.8kg (f)',
+          favoriteFood: 'krill',
+          previousIndex: 1,
+          nextIndex: 2
+        };
+
+        // Act
+        view.render(viewModel);
+
+        // Assert
+        assert(elementMock.innerHTML.indexOf(viewModel.name) > 0);
+        assert(elementMock.innerHTML.indexOf(viewModel.imageUrl) > 0);
+        assert(elementMock.innerHTML.indexOf(viewModel.size) > 0);
+        assert(elementMock.innerHTML.indexOf(viewModel.favoriteFood) > 0);
+        assert(elementMock.innerHTML.indexOf(viewModel.previousIndex) > 0);
+        assert(elementMock.innerHTML.indexOf(viewModel.nextIndex) > 0);
+      });
+
+      it('Query next and previous buttons in view', function onRun() {
+        // Arrange
+        var elementMock = new ElementMock();
+
+        var view = new PenguinView(elementMock);
+
+        var viewModel = { };
+
+        // Act
+        view.render(viewModel);
+
+        // Assert
+        assert.strictEqual(elementMock.calledQuerySelectorWith[0], '#previousPenguin');
+        assert.strictEqual(elementMock.calledQuerySelectorWith[1], '#nextPenguin');
+      });
+
+      it('Attach next and previous click events', function onRun() {
+        // Arrange
+        var elementMock = new ElementMock();
+
+        var view = new PenguinView(elementMock);
+        view.onClickGetPenguin = function dummy() { };
+
+        var viewModel = { };
+
+        // Act
+        view.render(viewModel);
+
+        // Assert
+        assert.strictEqual(elementMock.calledAddEventListenerWithType[0], 'click');
+        assert.strictEqual(elementMock.calledAddEventListenerWithType[1], 'click');
+        assert.strictEqual(typeof elementMock.calledAddEventListenerWithListener[0], 'function');
+        assert.strictEqual(typeof elementMock.calledAddEventListenerWithListener[1], 'function');
+      });
+
+      it('Set a focus once on a single element' , function onRun() {
+        // Arrange
+        var elementMock = new ElementMock();
+
+        var view = new PenguinView(elementMock);
+
+        var viewModel = { };
+
+        // Act
+        view.render(viewModel);
+
+        // Assert
+        assert.strictEqual(elementMock.calledFocusTimes, 1);
+      });
+    });
+
+    describe('PenguinModel', function onDescribe() {
+      var LIST_OF_PENGUINS = '[{"name": "Emperor","imageUrl":"http://www.penguinworld.com/types/emperor_files/emperorl-2.jpg","size":"36.7kg (m), 28.4kg (f)","favoriteFood":"fish and squid"},{"name":"Macaroni","imageUrl":"http://www.penguinworld.com/types/macaroni_files/macaroni-002850029.jpg","size":"5.2kg (m), 5.3kg (f)","favoriteFood":"krill"},{"name":"Chinstrap","imageUrl":"http://www.penguinworld.com/types/chinstrap_files/chinstrapl-2.jpg","size":"5.0kg (m), 4.8kg (f)","favoriteFood":"krill"},{"name":"Erect-crested","imageUrl":"http://www.penguinworld.com/types/erect_files/erectl-2.jpg","size":"5.2kg (m), 5.1kg (f)","favoriteFood":"krill and squid"},{"name":"African","imageUrl":"http://www.penguinworld.com/types/african_files/africanl-2.jpg","size":"3.3kg (m), 3.0kg (f)","favoriteFood":"small fish"}]';
+
+      var XMLHttpRequestMock = function XMLHttpRequestMock() {
+        this.onload = null;
+      };
+
+      XMLHttpRequestMock.prototype.open = function open(method, url, async) {
+        assert(method);
+        assert(url);
+        assert.strictEqual(async, true);
+      };
+
+      XMLHttpRequestMock.prototype.send = function send() {
+        this.onload({ currentTarget: { responseText: LIST_OF_PENGUINS } });
+      };
+
+      it('Get the emperor penguin with callback', function onRun() {
+        // Arrange
+        var penguinModel = new PenguinModel(XMLHttpRequestMock);
+
+        // Act
+        penguinModel.getPenguin(0, function onPenguinData(penguinData) {
+
+          // Assert
+          assert.strictEqual(penguinData.name, 'Emperor');
+          assert(penguinData.imageUrl);
+          assert.strictEqual(penguinData.size, '36.7kg (m), 28.4kg (f)');
+          assert.strictEqual(penguinData.favoriteFood, 'fish and squid');
+          assert.strictEqual(penguinData.index, 0);
+          assert.strictEqual(penguinData.count, 5);
+        });
+      });
+
+      it('Get the macaroni penguin with callback', function onRun() {
+        // Arrange
+        var penguinModel = new PenguinModel(XMLHttpRequestMock);
+
+        // Act
+        penguinModel.getPenguin(1, function onPenguinData(penguinData) {
+
+          // Assert
+          assert.strictEqual(penguinData.name, 'Macaroni');
+          assert(penguinData.imageUrl);
+          assert.strictEqual(penguinData.size, '5.2kg (m), 5.3kg (f)');
+          assert.strictEqual(penguinData.favoriteFood, 'krill');
+          assert.strictEqual(penguinData.index, 1);
+          assert.strictEqual(penguinData.count, 5);
+        });
+      });
+
+      it('Get the chinstrap penguin with callback', function onRun() {
+        // Arrange
+        var penguinModel = new PenguinModel(XMLHttpRequestMock);
+
+        // Act
+        penguinModel.getPenguin(2, function onPenguinData(penguinData) {
+
+          // Assert
+          assert.strictEqual(penguinData.name, 'Chinstrap');
+          assert(penguinData.imageUrl);
+          assert.strictEqual(penguinData.size, '5.0kg (m), 4.8kg (f)');
+          assert.strictEqual(penguinData.favoriteFood, 'krill');
+          assert.strictEqual(penguinData.index, 2);
+          assert.strictEqual(penguinData.count, 5);
+        });
+      });
+
+      it('Get the erect-crested penguin with callback', function onRun() {
+        // Arrange
+        var penguinModel = new PenguinModel(XMLHttpRequestMock);
+
+        // Act
+        penguinModel.getPenguin(3, function onPenguinData(penguinData) {
+
+          // Assert
+          assert.strictEqual(penguinData.name, 'Erect-crested');
+          assert(penguinData.imageUrl);
+          assert.strictEqual(penguinData.size, '5.2kg (m), 5.1kg (f)');
+          assert.strictEqual(penguinData.favoriteFood, 'krill and squid');
+          assert.strictEqual(penguinData.index, 3);
+          assert.strictEqual(penguinData.count, 5);
+        });
+      });
+
+      it('Get the african penguin with callback', function onRun() {
+        // Arrange
+        var penguinModel = new PenguinModel(XMLHttpRequestMock);
+
+        // Act
+        penguinModel.getPenguin(4, function onPenguinData(penguinData) {
+
+          // Assert
+          assert.strictEqual(penguinData.name, 'African');
+          assert(penguinData.imageUrl);
+          assert.strictEqual(penguinData.size, '3.3kg (m), 3.0kg (f)');
+          assert.strictEqual(penguinData.favoriteFood, 'small fish');
+          assert.strictEqual(penguinData.index, 4);
+          assert.strictEqual(penguinData.count, 5);
+        });
+      });
+    });
+
+    mocha.run();
+    </script>
+</body>
+</html>
