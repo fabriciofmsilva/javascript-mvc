@@ -15,26 +15,28 @@ function View(controller) {
 }
 
 function Model(){
-  var self = this; 
-  // heading is no longer a property, but a scoped variable
-  var heading = "Hello"
+  var self = this;
+  var state = new HeadingState();
+  var heading = state.getValue();
   this.observers = [];
-  this.registerObserver = function(observer) {
+  this.registerObserver = function(observer){
     self.observers.push(observer);
   }
-  this.notifyAll = function() {
-    self.observers.forEach(function(observer) {
+  this.notifyAll = function(){
+    self.observers.forEach(function(observer){
       observer.update(self);
     })
   }
-  //Pass this, as its the object we want to affect. Heading is the   
-  //name of the property we want it to be attached to. Than we 
-  //define the accessor and assignment functions
-  Object.defineProperty(this, "heading", {
+  //add changeHeading method to toggle state;
+  this.changeHeading = function(){
+    console.log('change heading');
+    state.changeState();
+    self.heading = state.getValue();
+  }
+  Object.defineProperty(this,"heading",{
     get: function() { return heading; },
     set: function(value) { 
-      heading = value; 
-      //call notifyAll in the assignment function     
+      heading = value;  
       this.notifyAll();
     }
   });
@@ -63,5 +65,36 @@ function Controller(model) {
     self.model.heading = 'World';
     //now we just notify our observers
     self.model.notifyAll();
+  }
+}
+
+function HeadingState(){
+  var self = this;
+  this.state = new HelloState(self);
+  this.changeState = function(){
+    self.state.next();
+  }
+  this.getValue = function(){
+    return self.state.value
+  }
+}
+
+function HelloState(container){
+  var self = this;
+  this.container = container;
+  this.value = 'Hello';
+  container.state = this;
+  this.next = function(){
+    return new WorldState(self.container);
+  }
+}
+
+function WorldState(container){
+  var self = this;
+  this.container = container;
+  this.value = 'World';
+  container.state = this;
+  this.next = function(){
+    return new HelloState(self.container);
   }
 }
